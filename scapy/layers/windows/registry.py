@@ -16,10 +16,10 @@ from scapy.packet import Packet
 from scapy.error import log_runtime
 
 from scapy.layers.windows.security import (
-    RegKeySpecificAccessRights,
-    GenericAccessRights,
     SECURITY_DESCRIPTOR,
     Windows_Access_Rights,
+    WINNT_ACCESS_MASK_SPECIFIC_TYPE,
+    register_winnt_access_mask_context_specific,
 )
 from scapy.layers.msrpce.rpcclient import DCERPC_Client
 from scapy.layers.dcerpc import (
@@ -57,6 +57,200 @@ from scapy.layers.msrpce.raw.ms_rrp import (
     RPC_UNICODE_STRING,
     NDRContextHandle,
 )
+
+from dataclasses import dataclass
+
+
+@dataclass
+class AccessRight:
+    """
+    Access right simple dataclass
+
+    :param value: Access right value
+    :type value: int
+
+    :param fullname: Full name of the access right
+    :type fullname: str
+
+    :param sddl: SDDL representation of the access right
+    :type sddl: str
+    """
+
+    value: int
+    fullname: str
+    sddl: str
+
+
+_WINNT_REGISTRY_SPECIFIC_ACCESS_MASK: dict = {
+    0x00000001: "KEY_QUERY_VALUE",
+    0x00000002: "KEY_SET_VALUE",
+    0x00000004: "KEY_CREATE_SUB_KEY",
+    0x00000008: "KEY_ENUMERATE_SUB_KEYS",
+    0x00000010: "KEY_NOTIFY",
+    0x00000020: "KEY_CREATE_LINK",
+    0x00000100: "KEY_WOW64_64KEY",
+    0x00000200: "KEY_WOW64_32KEY",
+}
+
+register_winnt_access_mask_context_specific(
+    WINNT_ACCESS_MASK_SPECIFIC_TYPE.REGISTRY, _WINNT_REGISTRY_SPECIFIC_ACCESS_MASK, {}
+)
+
+
+class RegKeySpecificAccessRights:
+    """
+    Access rights for registry keys:
+    https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-key-security-and-access-rights
+    """
+
+    # Standard read
+    STANDARD_RIGHTS_READ = 0x00020000
+
+    KEY_QUERY_VALUE = AccessRight(0x00000001, "KEY_QUERY_VALUE", None)
+    KEY_SET_VALUE = AccessRight(0x00000002, "KEY_SET_VALUE", None)
+    KEY_CREATE_SUB_KEY = AccessRight(0x00000004, "KEY_CREATE_SUB_KEY", None)
+    KEY_ENUMERATE_SUB_KEYS = AccessRight(0x00000008, "KEY_ENUMERATE_SUB_KEYS", None)
+    KEY_NOTIFY = AccessRight(0x00000010, "KEY_NOTIFY", None)
+    KEY_CREATE_LINK = AccessRight(0x00000020, "KEY_CREATE_LINK", None)
+    KEY_WOW64_64KEY = AccessRight(0x00000100, "KEY_WOW64_64KEY", None)
+    KEY_WOW64_32KEY = AccessRight(0x00000200, "KEY_WOW64_32KEY", None)
+    KEY_READ = AccessRight(
+        STANDARD_RIGHTS_READ
+        | KEY_QUERY_VALUE.value
+        | KEY_ENUMERATE_SUB_KEYS.value
+        | KEY_NOTIFY.value,
+        "KEY_READ",
+        "KR",
+    )
+    KEY_EXECUTE = AccessRight(KEY_READ.value, "KEY_EXECUTE", "KX")
+    KEY_WRITE = AccessRight(
+        STANDARD_RIGHTS_READ | KEY_SET_VALUE.value | KEY_CREATE_SUB_KEY.value,
+        "KEY_WRITE",
+        "KW",
+    )
+    KEY_ALL_ACCESS = AccessRight(
+        STANDARD_RIGHTS_READ
+        + KEY_QUERY_VALUE.value
+        + KEY_SET_VALUE.value
+        + KEY_CREATE_SUB_KEY.value
+        + KEY_ENUMERATE_SUB_KEYS.value
+        + KEY_NOTIFY.value
+        + KEY_CREATE_LINK.value,
+        "KEY_ALL_ACCESS",
+        "KA",
+    )
+
+    SPECIFIC_RIGHTS = {
+        KEY_QUERY_VALUE.value: KEY_QUERY_VALUE.fullname,
+        KEY_SET_VALUE.value: KEY_SET_VALUE.fullname,
+        KEY_CREATE_SUB_KEY.value: KEY_CREATE_SUB_KEY.fullname,
+        KEY_ENUMERATE_SUB_KEYS.value: KEY_ENUMERATE_SUB_KEYS.fullname,
+        KEY_NOTIFY.value: KEY_NOTIFY.fullname,
+        KEY_CREATE_LINK.value: KEY_CREATE_LINK.fullname,
+        KEY_WOW64_64KEY.value: KEY_WOW64_64KEY.fullname,
+        KEY_WOW64_32KEY.value: KEY_WOW64_32KEY.fullname,
+    }
+
+    def __init__(self, value: int = 0):
+        # In this particular cas we need both full value and specific rights value
+        # As standard rights are included in specific rights for registry keys
+        # e.g. KEY_READ includes STANDARD_RIGHTS_READ
+        # boring but true
+        self.value = value
+        self.specific_rights_value = self.value & 0x0000FFFF
+
+    def toSDDL(self) -> tuple[str, int]:
+        """
+        Return the SDDL representation of the access rights
+        :return: SDDL representation of the access rights
+        :rtype: str
+        .. code-block:: python
+            >>> tmp = RegKeySpecificAccessRights(0x000F03FF)
+            >>> tmp.toSDDL()
+            ('KA', 960)
+        """
+        sddl = set()
+
+        # First, we look for rights which have an SDDL representation
+        for right in [
+            self.KEY_ALL_ACCESS,
+            self.KEY_READ,
+            self.KEY_WRITE,
+            self.KEY_EXECUTE,
+        ]:
+            # Those are combinations of other rights
+            # So we check if all the bits are set, including standard rights
+            if self.value & right.value == right.value:
+                sddl.add(right.sddl)
+                # KEY_ALL_ACCESS includes all other rights
+                if right == self.KEY_ALL_ACCESS:
+                    # Hence if it matches, we can stop here
+                    break
+
+        # Finally, we compute what is left outside of known rights
+        outscope_value = self.specific_rights_value & ~(self.KEY_ALL_ACCESS.value)
+
+        return "".join(list(sddl)), outscope_value
+
+    def to_fullname(self) -> tuple[str, int]:
+        """
+        Return the full names of the access rights
+
+        :return: Full names of the access rights
+        :rtype: str
+
+        .. code-block:: python
+            >>> tmp = RegKeySpecificAccessRights(0x000F03FF)
+            >>> tmp.to_fullname()
+            ('KEY_WOW64_64KEY,KEY_WOW64_32KEY,KEY_ALL_ACCESS', 192)
+        """
+        names = []
+
+        # First, add all individual rights
+        for right in [
+            self.KEY_QUERY_VALUE,
+            self.KEY_SET_VALUE,
+            self.KEY_CREATE_SUB_KEY,
+            self.KEY_ENUMERATE_SUB_KEYS,
+            self.KEY_NOTIFY,
+            self.KEY_CREATE_LINK,
+            self.KEY_WOW64_64KEY,
+            self.KEY_WOW64_32KEY,
+        ]:
+            if self.value & right.value:
+                names.append(right.fullname)
+
+        # Then, check for combinations and remove individual rights if needed
+        # e.g. if KEY_ALL_ACCESS is set, remove all individual rights which compose it
+        if self.value & self.KEY_ALL_ACCESS.value == self.KEY_ALL_ACCESS.value:
+            names.append(self.KEY_ALL_ACCESS.fullname)
+            names.remove("KEY_QUERY_VALUE")
+            names.remove("KEY_SET_VALUE")
+            names.remove("KEY_CREATE_SUB_KEY")
+            names.remove("KEY_ENUMERATE_SUB_KEYS")
+            names.remove("KEY_NOTIFY")
+            names.remove("KEY_CREATE_LINK")
+        else:
+            if self.value & self.KEY_READ.value == self.KEY_READ.value:
+                names.append(self.KEY_READ.fullname)
+                names.remove("KEY_QUERY_VALUE")
+                names.remove("KEY_ENUMERATE_SUB_KEYS")
+                names.remove("KEY_NOTIFY")
+            if self.value & self.KEY_WRITE.value == self.KEY_WRITE.value:
+                names.append(self.KEY_WRITE.fullname)
+                names.remove("KEY_SET_VALUE")
+                names.remove("KEY_CREATE_SUB_KEY")
+
+            # KX is just an alias for KR so we don't need to handle it here
+
+        # Finally, we compute what is left outside of known rights
+        outscope_value = self.specific_rights_value & ~(
+            self.KEY_ALL_ACCESS.value
+            | self.KEY_WOW64_32KEY.value
+            | self.KEY_WOW64_64KEY.value
+        )
+
+        return ",".join(names), outscope_value
 
 
 class RootKeys(StrEnum):
@@ -434,7 +628,7 @@ class RegApi:
     def get_root_key_handle(
         client: DCERPC_Client,
         root_key_name: RootKeys,
-        sam_desired: RegAccessRights | int = GenericAccessRights.MAXIMUM_ALLOWED,
+        sam_desired: RegAccessRights | int = 0x02000000,
         ndr64: bool = True,
         timeout: int = 5,
     ) -> Optional[NDRContextHandle]:
@@ -532,9 +726,7 @@ class RegApi:
         client: DCERPC_Client,
         root_key_handle: NDRContextHandle,
         subkey_path: str,
-        desired_access_rights: (
-            RegAccessRights | int
-        ) = GenericAccessRights.MAXIMUM_ALLOWED,
+        desired_access_rights: RegAccessRights | int = 0x02000000,
         options: RegOptions = RegOptions.REG_OPTION_NON_VOLATILE,
         ndr64: bool = True,
         timeout: int = 5,
@@ -991,9 +1183,7 @@ class RegApi:
         client: DCERPC_Client,
         root_key_handle: NDRContextHandle,
         subkey_path: str,
-        desired_access_rights: (
-            RegAccessRights | int
-        ) = GenericAccessRights.MAXIMUM_ALLOWED,
+        desired_access_rights: RegAccessRights | int = 0x02000000,
         options: RegOptions = RegOptions.REG_OPTION_NON_VOLATILE,
         security_attributes: PRPC_SECURITY_ATTRIBUTES = None,
         ndr64: bool = True,

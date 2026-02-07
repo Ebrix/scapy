@@ -9,8 +9,10 @@ Python objects for Microsoft Windows security structures.
 """
 
 from dataclasses import dataclass
+import enum
 import re
 import struct
+from typing import Optional
 
 from scapy.config import conf
 from scapy.packet import Packet, bind_layers
@@ -428,14 +430,130 @@ class WINNT_ACE_HEADER(Packet):
             )
 
 
+# Field definition that takes context into account
+
+
+class WINNT_ACCESS_MASK_SPECIFIC_TYPE(enum.IntEnum):
+    """
+    Enum class used to identify the specific access rights type
+    for a given SECURITY_DESCRIPTOR. If you want to add a specific
+    access mask type, you need to:
+        - add a new enum value here
+        - create a dict with the specific access rights
+        - register it using register_winnt_access_mask_context_specific in your module
+    """
+
+    DEFAULT = 0
+    REGISTRY = 1
+
+    # to implement
+    # https://learn.microsoft.com/en-us/windows/win32/secauthz/access-rights-and-access-masks
+    # SAMR = 2
+    # FILE_SYSTEM = 3
+    # PROCESS = 4
+    # THREAD = 5
+    # TOKEN = 6
+    # SERVICE = 7
+    # SYNCHRONIZATION = 9
+    # JOB_OBJECT = 10
+
+
+_WINNT_ACCESS_MASK_CONTEXT_SPECIFIC: dict[
+    WINNT_ACCESS_MASK_SPECIFIC_TYPE, dict[str, FlagsField | str]
+] = {}
+
+
+def register_winnt_access_mask_context_specific(
+    mask_specific_type: WINNT_ACCESS_MASK_SPECIFIC_TYPE,
+    specific_access_masks: dict,
+    aliases_sddl: dict,
+) -> None:
+    """
+    Function to register context-specific access masks for a given
+    SECURITY_DESCRIPTOR type.
+
+    :param mask_specific_type: type of the SECURITY_DESCRIPTOR
+                               (as per WINNT_ACCESS_MASK_SPECIFIC_TYPE)
+    :type mask_specific_type: WINNT_ACCESS_MASK_SPECIFIC_TYPE
+
+    :param specific_access_masks: dict of specific access masks to add/override
+    :type specific_access_masks: dict
+
+    :param aliases_sddl: dict of SDDL aliases for the specific access masks
+    :type aliases_sddl: dict
+    """
+    _WINNT_ACCESS_MASK_CONTEXT_SPECIFIC[mask_specific_type] = {
+        "mask": _WINNT_ACCESS_MASK.copy(),
+        "aliases_sddl": aliases_sddl,
+    }
+    _WINNT_ACCESS_MASK_CONTEXT_SPECIFIC[mask_specific_type]["mask"].update(
+        specific_access_masks
+    )
+    print(
+        f"[+] Registered context-specific access mask for type {mask_specific_type} with masks {specific_access_masks} and SDDL aliases {aliases_sddl}"
+    )
+
+
+register_winnt_access_mask_context_specific(
+    WINNT_ACCESS_MASK_SPECIFIC_TYPE.DEFAULT,
+    {},
+    {},
+)
+
+
+class _WINNT_ACCESS_MASK_Field(MultipleTypeField):
+    def __init__(self, name, default):
+        # We create a MultipleTypeField that returns different FlagsField depending
+        # on the type of the SECURITY_DESCRIPTOR
+        self.flds = [
+            (
+                FlagsField(name, default, 32, context["mask"]),
+                lambda pkt, m_type=mask_type: self._winnt_access_mask_specific_type(pkt)
+                == m_type,
+            )
+            for mask_type, context in _WINNT_ACCESS_MASK_CONTEXT_SPECIFIC.items()
+        ]
+        super(_WINNT_ACCESS_MASK_Field, self).__init__(
+            self.flds,
+            FlagsField(name, default, 32, _WINNT_ACCESS_MASK),
+        )
+
+    def _winnt_access_mask_specific_type(self, pkt):
+        print(
+            f"[*] Got {pkt.__class__.__name__} with mask_specific_type={pkt.mask_specific_type}"
+        )
+        print(self.flds)
+        return pkt.mask_specific_type
+
+
 # [MS-DTYP] sect 2.4.4.2
 
 
 class WINNT_ACCESS_ALLOWED_ACE(Packet):
     fields_desc = [
-        FlagsField("Mask", 0, -32, _WINNT_ACCESS_MASK),
+        _WINNT_ACCESS_MASK_Field("Mask", 0),
         PacketField("Sid", WINNT_SID(), WINNT_SID),
     ]
+    __slots__ = ["mask_specific_type"]
+
+    def __init__(self, *args, **kwargs):
+        # Identify which specific type of ACE we are parsing to be able to use the right access mask
+        self.mask_specific_type = kwargs.pop(
+            "mask_specific_type", WINNT_ACCESS_MASK_SPECIFIC_TYPE.DEFAULT
+        )
+        if self.mask_specific_type not in WINNT_ACCESS_MASK_SPECIFIC_TYPE:
+            print(
+                "[!] Warning: unknown WINNT_ACCESS_MASK_SPECIFIC_TYPE %s"
+                % self.mask_specific_type
+            )
+            self.mask_specific_type = WINNT_ACCESS_MASK_SPECIFIC_TYPE.DEFAULT
+
+        super(WINNT_ACCESS_ALLOWED_ACE, self).__init__(*args, **kwargs)
+        self.fields_desc = [
+            _WINNT_ACCESS_MASK_Field("Mask", 0),
+            PacketField("Sid", WINNT_SID(), WINNT_SID),
+        ]
+        breakpoint()
 
 
 bind_layers(WINNT_ACE_HEADER, WINNT_ACCESS_ALLOWED_ACE, AceType=0x00)
@@ -857,6 +975,8 @@ class WINNT_ACL(Packet):
 class SECURITY_DESCRIPTOR(_NTLMPayloadPacket):
     OFFSET = 20
     _NTLM_PAYLOAD_FIELD_NAME = "Data"
+    __slots__ = ["type"]
+
     fields_desc = [
         ByteField("Revision", 0x01),
         ByteField("Sbz1", 0x00),
@@ -912,6 +1032,14 @@ class SECURITY_DESCRIPTOR(_NTLMPayloadPacket):
         ),
     ]
 
+    def __init__(self, *args, **kwargs):
+        print("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
+        super(SECURITY_DESCRIPTOR, self).__init__(*args, **kwargs)
+        print("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
+        self.type = kwargs.pop("type", _WINNT_ACCESS_MASK_SPECIFIC_TYPE.DEFAULT)
+        if self.type not in _WINNT_ACCESS_MASK_SPECIFIC_TYPE:
+            print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+
     def post_build(self, pkt, pay):
         # type: (bytes, bytes) -> bytes
         return (
@@ -956,11 +1084,41 @@ class AccessRight:
     sddl: str
 
 
-class GenericAccessRights:
+class AccessRights(Packet):
     """
     Generic access rights:
     https://learn.microsoft.com/en-us/windows/win32/secauthz/generic-access-rights
     """
+
+    fields_desc = [
+        FlagsField(
+            "GenericAccessRights",
+            0,
+            8,
+            {
+                0x80: "GENERIC_READ",
+                0x40: "GENERIC_WRITE",
+                0x20: "GENERIC_EXECUTE",
+                0x10: "GENERIC_ALL",
+                0x08: "RESERVED_BIT27",
+                0x04: "RESERVED_BIT26",
+                0x02: "MAXIMUM_ALLOWED",
+                0x01: "ACCESS_SYSTEM_SECURITY",
+            },
+        ),
+        FlagsField(
+            "StandardAccessRights",
+            0,
+            8,
+            {
+                0x01: "DELETE",
+                0x02: "READ_CONTROL",
+                0x04: "WRITE_DAC",
+                0x08: "WRITE_OWNER",
+                0x10: "SYNCHRONIZE",
+            },
+        ),
+    ]
 
     GENERIC_READ = AccessRight(0x80000000, "GENERIC_READ", "GR")
     GENERIC_WRITE = AccessRight(0x40000000, "GENERIC_WRITE", "GW")
@@ -969,8 +1127,20 @@ class GenericAccessRights:
     MAXIMUM_ALLOWED = AccessRight(0x02000000, "MAXIMUM_ALLOWED", None)
     ACCESS_SACL = AccessRight(0x01000000, "ACCESS_SYSTEM_SECURITY", None)
 
-    def __init__(self, value: int = 0):
-        self.value = value & 0xF0000000
+    # def __init__(self, value: int):
+    #     super().__init__()
+    #     self.value = value & 0xFF000000
+
+    # def pre_dissect(self, s: int) -> bytes:
+    #     if isinstance(s, str):
+    #         try:
+    #             s = int(s)
+    #         except ValueError:
+    #             s = int(s, 16)
+    #     if isinstance(s, int):
+    #         s = s & 0xFF000000
+    #         return s.to_bytes(length=4)
+    #     return s
 
     def toSDDL(self) -> tuple[str, int]:
         """
@@ -991,10 +1161,10 @@ class GenericAccessRights:
             self.GENERIC_EXECUTE,
             self.GENERIC_ALL,
         ]:
-            if self.value & right.value:
+            if self.GenericAccessRights & right.value:
                 sddl.append(right.sddl)
 
-        outscope_value = self.value & ~(
+        outscope_value = self.GenericAccessRights & ~(
             self.GENERIC_READ.value
             | self.GENERIC_WRITE.value
             | self.GENERIC_EXECUTE.value
@@ -1115,150 +1285,6 @@ class StandardAccessRights:
             | self.WRITE_OWNER.value
             | self.SYNCHRONIZE.value
         )
-        return ",".join(names), outscope_value
-
-
-class RegKeySpecificAccessRights:
-    """
-    Access rights for registry keys:
-    https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-key-security-and-access-rights
-    """
-
-    KEY_QUERY_VALUE = AccessRight(0x00000001, "KEY_QUERY_VALUE", None)
-    KEY_SET_VALUE = AccessRight(0x00000002, "KEY_SET_VALUE", None)
-    KEY_CREATE_SUB_KEY = AccessRight(0x00000004, "KEY_CREATE_SUB_KEY", None)
-    KEY_ENUMERATE_SUB_KEYS = AccessRight(0x00000008, "KEY_ENUMERATE_SUB_KEYS", None)
-    KEY_NOTIFY = AccessRight(0x00000010, "KEY_NOTIFY", None)
-    KEY_CREATE_LINK = AccessRight(0x00000020, "KEY_CREATE_LINK", None)
-    KEY_WOW64_64KEY = AccessRight(0x0100, "KEY_WOW64_64KEY", None)
-    KEY_WOW64_32KEY = AccessRight(0x0200, "KEY_WOW64_32KEY", None)
-    KEY_READ = AccessRight(
-        StandardAccessRights.STANDARD_RIGHTS_READ.value
-        | KEY_QUERY_VALUE.value
-        | KEY_ENUMERATE_SUB_KEYS.value
-        | KEY_NOTIFY.value,
-        "KEY_READ",
-        "KR",
-    )
-    KEY_EXECUTE = AccessRight(KEY_READ.value, "KEY_EXECUTE", "KX")
-    KEY_WRITE = AccessRight(
-        StandardAccessRights.STANDARD_RIGHTS_ALL.value
-        | KEY_SET_VALUE.value
-        | KEY_CREATE_SUB_KEY.value,
-        "KEY_WRITE",
-        "KW",
-    )
-    KEY_ALL_ACCESS = AccessRight(
-        StandardAccessRights.STANDARD_RIGHTS_REQUIRED.value
-        + KEY_QUERY_VALUE.value
-        + KEY_SET_VALUE.value
-        + KEY_CREATE_SUB_KEY.value
-        + KEY_ENUMERATE_SUB_KEYS.value
-        + KEY_NOTIFY.value
-        + KEY_CREATE_LINK.value,
-        "KEY_ALL_ACCESS",
-        "KA",
-    )
-
-    def __init__(self, value: int = 0):
-        # In this particular cas we need both full value and specific rights value
-        # As standard rights are included in specific rights for registry keys
-        # e.g. KEY_READ includes STANDARD_RIGHTS_READ
-        # boring but true
-        self.value = value
-        self.specific_rights_value = self.value & 0x0000FFFF
-
-    def toSDDL(self) -> tuple[str, int]:
-        """
-        Return the SDDL representation of the access rights
-        :return: SDDL representation of the access rights
-        :rtype: str
-        .. code-block:: python
-            >>> tmp = RegKeySpecificAccessRights(0x000F03FF)
-            >>> tmp.toSDDL()
-            ('KA', 960)
-        """
-        sddl = set()
-
-        # First, we look for rights which have an SDDL representation
-        for right in [
-            self.KEY_ALL_ACCESS,
-            self.KEY_READ,
-            self.KEY_WRITE,
-            self.KEY_EXECUTE,
-        ]:
-            # Those are combinations of other rights
-            # So we check if all the bits are set, including standard rights
-            if self.value & right.value == right.value:
-                sddl.add(right.sddl)
-                # KEY_ALL_ACCESS includes all other rights
-                if right == self.KEY_ALL_ACCESS:
-                    # Hence if it matches, we can stop here
-                    break
-
-        # Finally, we compute what is left outside of known rights
-        outscope_value = self.specific_rights_value & ~(self.KEY_ALL_ACCESS.value)
-
-        return "".join(list(sddl)), outscope_value
-
-    def to_fullname(self) -> tuple[str, int]:
-        """
-        Return the full names of the access rights
-
-        :return: Full names of the access rights
-        :rtype: str
-
-        .. code-block:: python
-            >>> tmp = RegKeySpecificAccessRights(0x000F03FF)
-            >>> tmp.to_fullname()
-            ('KEY_WOW64_64KEY,KEY_WOW64_32KEY,KEY_ALL_ACCESS', 192)
-        """
-        names = []
-
-        # First, add all individual rights
-        for right in [
-            self.KEY_QUERY_VALUE,
-            self.KEY_SET_VALUE,
-            self.KEY_CREATE_SUB_KEY,
-            self.KEY_ENUMERATE_SUB_KEYS,
-            self.KEY_NOTIFY,
-            self.KEY_CREATE_LINK,
-            self.KEY_WOW64_64KEY,
-            self.KEY_WOW64_32KEY,
-        ]:
-            if self.value & right.value:
-                names.append(right.fullname)
-
-        # Then, check for combinations and remove individual rights if needed
-        # e.g. if KEY_ALL_ACCESS is set, remove all individual rights which compose it
-        if self.value & self.KEY_ALL_ACCESS.value == self.KEY_ALL_ACCESS.value:
-            names.append(self.KEY_ALL_ACCESS.fullname)
-            names.remove("KEY_QUERY_VALUE")
-            names.remove("KEY_SET_VALUE")
-            names.remove("KEY_CREATE_SUB_KEY")
-            names.remove("KEY_ENUMERATE_SUB_KEYS")
-            names.remove("KEY_NOTIFY")
-            names.remove("KEY_CREATE_LINK")
-        else:
-            if self.value & self.KEY_READ.value == self.KEY_READ.value:
-                names.append(self.KEY_READ.fullname)
-                names.remove("KEY_QUERY_VALUE")
-                names.remove("KEY_ENUMERATE_SUB_KEYS")
-                names.remove("KEY_NOTIFY")
-            if self.value & self.KEY_WRITE.value == self.KEY_WRITE.value:
-                names.append(self.KEY_WRITE.fullname)
-                names.remove("KEY_SET_VALUE")
-                names.remove("KEY_CREATE_SUB_KEY")
-
-            # KX is just an alias for KR so we don't need to handle it here
-
-        # Finally, we compute what is left outside of known rights
-        outscope_value = self.specific_rights_value & ~(
-            self.KEY_ALL_ACCESS.value
-            | self.KEY_WOW64_32KEY.value
-            | self.KEY_WOW64_64KEY.value
-        )
-
         return ",".join(names), outscope_value
 
 

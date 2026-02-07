@@ -42,12 +42,23 @@ from scapy.fields import (
 )
 from scapy.config import conf, _version_checker
 from scapy.compat import raw, orb, bytes_encode
-from scapy.base_classes import BasePacket, Gen, SetGen, Packet_metaclass, \
-    _CanvasDumpExtended
+from scapy.base_classes import (
+    BasePacket,
+    Gen,
+    SetGen,
+    Packet_metaclass,
+    _CanvasDumpExtended,
+)
 from scapy.interfaces import _GlobInterfaceType
 from scapy.volatile import RandField, VolatileValue
-from scapy.utils import import_hexcap, tex_escape, colgen, issubtype, \
-    pretty_list, EDecimal
+from scapy.utils import (
+    import_hexcap,
+    tex_escape,
+    colgen,
+    issubtype,
+    pretty_list,
+    EDecimal,
+)
 from scapy.error import Scapy_Exception, log_runtime, warning
 from scapy.libs.test_pyx import PYX
 
@@ -79,30 +90,38 @@ except ImportError:
 _T = TypeVar("_T", Dict[str, Any], Optional[Dict[str, Any]])
 
 
-class Packet(
-    BasePacket,
-    _CanvasDumpExtended,
-    metaclass=Packet_metaclass
-):
+class Packet(BasePacket, _CanvasDumpExtended, metaclass=Packet_metaclass):
     __slots__ = [
-        "time", "sent_time", "name",
-        "default_fields", "fields", "fieldtype",
-        "overload_fields", "overloaded_fields",
+        "time",
+        "sent_time",
+        "name",
+        "default_fields",
+        "fields",
+        "fieldtype",
+        "overload_fields",
+        "overloaded_fields",
         "packetfields",
-        "original", "explicit", "raw_packet_cache",
-        "raw_packet_cache_fields", "_pkt", "post_transforms",
+        "original",
+        "explicit",
+        "raw_packet_cache",
+        "raw_packet_cache_fields",
+        "_pkt",
+        "post_transforms",
         "stop_dissection_after",
         # then payload, underlayer and parent
-        "payload", "underlayer", "parent",
+        "payload",
+        "underlayer",
+        "parent",
         "name",
         # used for sr()
         "_answered",
         # used when sniffing
-        "direction", "sniffed_on",
+        "direction",
+        "sniffed_on",
         # handle snaplen Vs real length
         "wirelen",
         "comments",
-        "process_information"
+        "process_information",
     ]
     name = None
     fields_desc = []  # type: List[AnyField]
@@ -128,7 +147,8 @@ class Packet(
         # type: () -> None
         for fval, upper in self.payload_guess:
             print(
-                "%-20s  %s" % (
+                "%-20s  %s"
+                % (
                     upper.__name__,
                     ", ".join("%-12s" % ("%s=%r" % i) for i in fval.items()),
                 )
@@ -139,27 +159,27 @@ class Packet(
         # type: () -> None
         for lower, fval in self._overload_fields.items():
             print(
-                "%-20s  %s" % (
+                "%-20s  %s"
+                % (
                     lower.__name__,
                     ", ".join("%-12s" % ("%s=%r" % i) for i in fval.items()),
                 )
             )
 
-    def __init__(self,
-                 _pkt=b"",  # type: Union[bytes, bytearray]
-                 post_transform=None,  # type: Any
-                 _internal=0,  # type: int
-                 _underlayer=None,  # type: Optional[Packet]
-                 _parent=None,  # type: Optional[Packet]
-                 stop_dissection_after=None,  # type: Optional[Type[Packet]]
-                 **fields  # type: Any
-                 ):
+    def __init__(
+        self,
+        _pkt=b"",  # type: Union[bytes, bytearray]
+        post_transform=None,  # type: Any
+        _internal=0,  # type: int
+        _underlayer=None,  # type: Optional[Packet]
+        _parent=None,  # type: Optional[Packet]
+        stop_dissection_after=None,  # type: Optional[Type[Packet]]
+        **fields,  # type: Any
+    ):
         # type: (...) -> None
         self.time = time.time()  # type: Union[EDecimal, float]
         self.sent_time = None  # type: Union[EDecimal, float, None]
-        self.name = (self.__class__.__name__
-                     if self._name is None else
-                     self._name)
+        self.name = self.__class__.__name__ if self._name is None else self._name
         self.default_fields = {}  # type: Dict[str, Any]
         self.overload_fields = self._overload_fields
         self.overloaded_fields = {}  # type: Dict[str, Any]
@@ -175,7 +195,9 @@ class Packet(
         self.original = _pkt
         self.explicit = 0
         self.raw_packet_cache = None  # type: Optional[bytes]
-        self.raw_packet_cache_fields = None  # type: Optional[Dict[str, Any]]  # noqa: E501
+        self.raw_packet_cache_fields = (
+            None
+        )  # type: Optional[Dict[str, Any]]  # noqa: E501
         self.wirelen = None  # type: Optional[int]
         self.direction = None  # type: Optional[int]
         self.sniffed_on = None  # type: Optional[_GlobInterfaceType]
@@ -195,16 +217,22 @@ class Packet(
                 value = fields.pop(fname)
             except KeyError:
                 continue
-            self.fields[fname] = value if isinstance(value, RawVal) else \
-                self.get_field(fname).any2i(self, value)
+            self.fields[fname] = (
+                value
+                if isinstance(value, RawVal)
+                else self.get_field(fname).any2i(self, value)
+            )
         # The remaining fields are unknown
         for fname in fields:
             if fname in self.deprecated_fields:
                 # Resolve deprecated fields
                 value = fields[fname]
                 fname = self._resolve_alias(fname)
-                self.fields[fname] = value if isinstance(value, RawVal) else \
-                    self.get_field(fname).any2i(self, value)
+                self.fields[fname] = (
+                    value
+                    if isinstance(value, RawVal)
+                    else self.get_field(fname).any2i(self, value)
+                )
                 continue
             raise AttributeError(fname)
         if isinstance(post_transform, list):
@@ -246,14 +274,18 @@ class Packet(
     def __reduce__(self):
         # type: () -> Tuple[Type[Packet], Tuple[bytes], Packet._PickleType]
         """Used by pickling methods"""
-        return (self.__class__, (self.build(),), (
-            self.time,
-            self.sent_time,
-            self.direction,
-            self.sniffed_on,
-            self.wirelen,
-            self.comment
-        ))
+        return (
+            self.__class__,
+            (self.build(),),
+            (
+                self.time,
+                self.sent_time,
+                self.direction,
+                self.sniffed_on,
+                self.wirelen,
+                self.comment,
+            ),
+        )
 
     def __setstate__(self, state):
         # type: (Packet._PickleType) -> Packet
@@ -266,9 +298,10 @@ class Packet(
         self.comment = state[5]
         return self
 
-    def __deepcopy__(self,
-                     memo,  # type: Any
-                     ):
+    def __deepcopy__(
+        self,
+        memo,  # type: Any
+    ):
         # type: (...) -> Packet
         """Used by copy.deepcopy"""
         return self.copy()
@@ -284,9 +317,10 @@ class Packet(
         else:
             self.do_init_cached_fields(for_dissect_only=for_dissect_only)
 
-    def do_init_fields(self,
-                       flist,  # type: Sequence[AnyField]
-                       ):
+    def do_init_fields(
+        self,
+        flist,  # type: Sequence[AnyField]
+    ):
         # type: (...) -> None
         """
         Initialize each fields of the fields_desc dict
@@ -407,7 +441,10 @@ class Packet(
             elif isinstance(payload, (bytes, str, bytearray, memoryview)):
                 self.payload = conf.raw_layer(load=bytes_encode(payload))
             else:
-                raise TypeError("payload must be 'Packet', 'bytes', 'str', 'bytearray', or 'memoryview', not [%s]" % repr(payload))  # noqa: E501
+                raise TypeError(
+                    "payload must be 'Packet', 'bytes', 'str', 'bytearray', or 'memoryview', not [%s]"
+                    % repr(payload)
+                )  # noqa: E501
 
     def remove_payload(self):
         # type: () -> None
@@ -464,9 +501,9 @@ class Packet(
         # type: (str) -> str
         new_attr, version = self.deprecated_fields[attr]
         warnings.warn(
-            "%s has been deprecated in favor of %s since %s !" % (
-                attr, new_attr, version
-            ), DeprecationWarning
+            "%s has been deprecated in favor of %s since %s !"
+            % (attr, new_attr, version),
+            DeprecationWarning,
         )
         return new_attr
 
@@ -514,8 +551,7 @@ class Packet(
                 any2i = lambda x, y: y  # type: Callable[..., Any]
             else:
                 any2i = fld.any2i
-            self.fields[attr] = val if isinstance(val, RawVal) else \
-                any2i(self, val)
+            self.fields[attr] = val if isinstance(val, RawVal) else any2i(self, val)
             self.explicit = 0
             self.raw_packet_cache = None
             self.raw_packet_cache_fields = None
@@ -570,10 +606,10 @@ class Packet(
         """
         attrs = set()  # type: Set[str]
         cls = self.__class__
-        if hasattr(cls, '__all_slots__'):
+        if hasattr(cls, "__all_slots__"):
             attrs.update(cls.__all_slots__)
         for bcls in cls.__mro__:
-            if hasattr(bcls, '__dict__'):
+            if hasattr(bcls, "__dict__"):
                 attrs.update(bcls.__dict__)
         return attrs
 
@@ -610,15 +646,15 @@ class Packet(
                 ncol = ct.field_name
                 vcol = ct.field_value
 
-            s += " %s%s%s" % (ncol(f.name),
-                              ct.punct("="),
-                              vcol(val))
-        return "%s%s %s %s%s%s" % (ct.punct("<"),
-                                   ct.layer_name(self.__class__.__name__),
-                                   s,
-                                   ct.punct("|"),
-                                   repr(self.payload),
-                                   ct.punct(">"))
+            s += " %s%s%s" % (ncol(f.name), ct.punct("="), vcol(val))
+        return "%s%s %s %s%s%s" % (
+            ct.punct("<"),
+            ct.layer_name(self.__class__.__name__),
+            s,
+            ct.punct("|"),
+            repr(self.payload),
+            ct.punct(">"),
+        )
 
     def __str__(self):
         # type: () -> str
@@ -639,6 +675,7 @@ class Packet(
             return self / conf.raw_layer(load=bytes_encode(other))
         else:
             return other.__rdiv__(self)  # type: ignore
+
     __truediv__ = __div__
 
     def __rdiv__(self, other):
@@ -647,6 +684,7 @@ class Packet(
             return conf.raw_layer(load=bytes_encode(other)) / self
         else:
             raise TypeError
+
     __rtruediv__ = __rdiv__
 
     def __mul__(self, other):
@@ -663,6 +701,7 @@ class Packet(
     def __nonzero__(self):
         # type: () -> bool
         return True
+
     __bool__ = __nonzero__
 
     def __len__(self):
@@ -677,8 +716,9 @@ class Packet(
         # type: (_T) -> _T
         if fields is None:
             return None
-        return {fname: self.copy_field_value(fname, fval)
-                for fname, fval in fields.items()}
+        return {
+            fname: self.copy_field_value(fname, fval) for fname, fval in fields.items()
+        }
 
     def _raw_packet_cache_field_value(self, fld, val, copy=False):
         # type: (AnyField, Any, bool) -> Optional[Any]
@@ -687,9 +727,7 @@ class Packet(
         if fld.holds_packets:
             # avoid copying whole packets (perf: #GH3894)
             if fld.islist:
-                return [
-                    (_cpy(x.fields), x.payload.raw_packet_cache) for x in val
-                ]
+                return [(_cpy(x.fields), x.payload.raw_packet_cache) for x in val]
             else:
                 return (_cpy(val.fields), val.payload.raw_packet_cache)
         elif fld.islist or fld.ismutable:
@@ -715,8 +753,10 @@ class Packet(
         """
         Create the default layer regarding fields_desc dict
         """
-        if self.raw_packet_cache is not None and \
-                self.raw_packet_cache_fields is not None:
+        if (
+            self.raw_packet_cache is not None
+            and self.raw_packet_cache_fields is not None
+        ):
             for fname, fval in self.raw_packet_cache_fields.items():
                 fld, val = self.getfield_and_val(fname)
                 if self._raw_packet_cache_field_value(fld, val) != fval:
@@ -737,8 +777,7 @@ class Packet(
                 except Exception as ex:
                     try:
                         ex.args = (
-                            "While building field '%s': " % f.name +
-                            ex.args[0],
+                            "While building field '%s': " % f.name + ex.args[0],
                         ) + ex.args[1:]
                     except (AttributeError, IndexError):
                         pass
@@ -813,7 +852,7 @@ class Packet(
                 continue
             p = f.addfield(self, p, self.getfieldval(f.name))
             if isinstance(p, bytes):
-                r = p[len(q):]
+                r = p[len(q) :]
                 q = p
             else:
                 r = b""
@@ -828,13 +867,13 @@ class Packet(
     def build_ps(self, internal=0):
         # type: (int) -> Tuple[bytes, List[Tuple[Packet, List[Tuple[Any, Any, bytes]]]]]  # noqa: E501
         p, lst = self.do_build_ps()
-#        if not internal:
-#            pkt = self
-#            while pkt.haslayer(conf.padding_layer):
-#                pkt = pkt.getlayer(conf.padding_layer)
-#                lst.append( (pkt, [ ("loakjkjd", pkt.load, pkt.load) ] ) )
-#                p += pkt.load
-#                pkt = pkt.payload
+        #        if not internal:
+        #            pkt = self
+        #            while pkt.haslayer(conf.padding_layer):
+        #                pkt = pkt.getlayer(conf.padding_layer)
+        #                lst.append( (pkt, [ ("loakjkjd", pkt.load, pkt.load) ] ) )
+        #                p += pkt.load
+        #                pkt = pkt.payload
         return p, lst
 
     def canvas_dump(self, layer_shift=0, rebuild=1):
@@ -861,7 +900,7 @@ class Packet(
 
         backcolor = colgen(0.6, 0.8, 1.0, trans=pyx.color.rgb)
         forecolor = colgen(0.2, 0.5, 0.8, trans=pyx.color.rgb)
-#        backcolor=makecol(0.376, 0.729, 0.525, 1.0)
+        #        backcolor=makecol(0.376, 0.729, 0.525, 1.0)
 
         def hexstr(x):
             # type: (bytes) -> str
@@ -873,14 +912,13 @@ class Packet(
                 XDSTART + x * XMUL,
                 (YDUMP - y) * YMUL,
                 r"\tt{%s}" % hexstr(txt),
-                [pyx.text.size.Large]
+                [pyx.text.size.Large],
             )
 
         def make_box(o):
             # type: (pyx.bbox.bbox) -> pyx.bbox.bbox
             return pyx.box.rect(
-                o.left(), o.bottom(), o.width(), o.height(),
-                relcenter=(0.5, 0.5)
+                o.left(), o.bottom(), o.width(), o.height(), relcenter=(0.5, 0.5)
             )
 
         def make_frame(lst):
@@ -895,14 +933,16 @@ class Packet(
                 lb = lst[-1].bbox()
                 lb.enlarge(pyx.unit.u_pt)
                 if len(lst) == 2 and fb.left() > lb.right():
-                    return pyx.path.path(pyx.path.moveto(fb.right(), fb.top()),
-                                         pyx.path.lineto(fb.left(), fb.top()),
-                                         pyx.path.lineto(fb.left(), fb.bottom()),  # noqa: E501
-                                         pyx.path.lineto(fb.right(), fb.bottom()),  # noqa: E501
-                                         pyx.path.moveto(lb.left(), lb.top()),
-                                         pyx.path.lineto(lb.right(), lb.top()),
-                                         pyx.path.lineto(lb.right(), lb.bottom()),  # noqa: E501
-                                         pyx.path.lineto(lb.left(), lb.bottom()))  # noqa: E501
+                    return pyx.path.path(
+                        pyx.path.moveto(fb.right(), fb.top()),
+                        pyx.path.lineto(fb.left(), fb.top()),
+                        pyx.path.lineto(fb.left(), fb.bottom()),  # noqa: E501
+                        pyx.path.lineto(fb.right(), fb.bottom()),  # noqa: E501
+                        pyx.path.moveto(lb.left(), lb.top()),
+                        pyx.path.lineto(lb.right(), lb.top()),
+                        pyx.path.lineto(lb.right(), lb.bottom()),  # noqa: E501
+                        pyx.path.lineto(lb.left(), lb.bottom()),
+                    )  # noqa: E501
                 else:
                     # XXX
                     gb = lst[1].bbox()
@@ -911,28 +951,31 @@ class Packet(
                     kb = lst[-2].bbox()
                     if kb != gb and kb != lb:
                         kb.enlarge(pyx.unit.u_pt)
-                    return pyx.path.path(pyx.path.moveto(fb.left(), fb.top()),
-                                         pyx.path.lineto(fb.right(), fb.top()),
-                                         pyx.path.lineto(fb.right(), kb.bottom()),  # noqa: E501
-                                         pyx.path.lineto(lb.right(), kb.bottom()),  # noqa: E501
-                                         pyx.path.lineto(lb.right(), lb.bottom()),  # noqa: E501
-                                         pyx.path.lineto(lb.left(), lb.bottom()),  # noqa: E501
-                                         pyx.path.lineto(lb.left(), gb.top()),
-                                         pyx.path.lineto(fb.left(), gb.top()),
-                                         pyx.path.closepath(),)
+                    return pyx.path.path(
+                        pyx.path.moveto(fb.left(), fb.top()),
+                        pyx.path.lineto(fb.right(), fb.top()),
+                        pyx.path.lineto(fb.right(), kb.bottom()),  # noqa: E501
+                        pyx.path.lineto(lb.right(), kb.bottom()),  # noqa: E501
+                        pyx.path.lineto(lb.right(), lb.bottom()),  # noqa: E501
+                        pyx.path.lineto(lb.left(), lb.bottom()),  # noqa: E501
+                        pyx.path.lineto(lb.left(), gb.top()),
+                        pyx.path.lineto(fb.left(), gb.top()),
+                        pyx.path.closepath(),
+                    )
 
-        def make_dump(s,   # type: bytes
-                      shift=0,  # type: int
-                      y=0.,  # type: float
-                      col=None,  # type: pyx.color.color
-                      bkcol=None,  # type: pyx.color.color
-                      large=16  # type: int
-                      ):
+        def make_dump(
+            s,  # type: bytes
+            shift=0,  # type: int
+            y=0.0,  # type: float
+            col=None,  # type: pyx.color.color
+            bkcol=None,  # type: pyx.color.color
+            large=16,  # type: int
+        ):
             # type: (...) -> Tuple[pyx.canvas.canvas, pyx.bbox.bbox, int, float]  # noqa: E501
             c = pyx.canvas.canvas()
             tlist = []
             while s:
-                dmp, s = s[:large - shift], s[large - shift:]
+                dmp, s = s[: large - shift], s[large - shift :]
                 txt = make_dump_txt(shift, y, dmp)
                 tlist.append(txt)
                 shift += len(dmp)
@@ -943,7 +986,10 @@ class Packet(
                 col = pyx.color.rgb.red
             if bkcol is None:
                 bkcol = pyx.color.rgb.white
-            c.stroke(make_frame(tlist), [col, pyx.deco.filled([bkcol]), pyx.style.linewidth.Thick])  # noqa: E501
+            c.stroke(
+                make_frame(tlist),
+                [col, pyx.deco.filled([bkcol]), pyx.style.linewidth.Thick],
+            )  # noqa: E501
             for txt in tlist:
                 c.insert(txt)
             return c, tlist[-1].bbox(), shift, y
@@ -956,37 +1002,54 @@ class Packet(
             pt = pyx.text.text(
                 XSTART,
                 (YTXT - y) * YMUL,
-                r"\font\cmssfont=cmss10\cmssfont{%s}" % tex_escape(
-                    str(proto.name)
-                ),
-                [pyx.text.size.Large]
+                r"\font\cmssfont=cmss10\cmssfont{%s}" % tex_escape(str(proto.name)),
+                [pyx.text.size.Large],
             )
             y += 1
             ptbb = pt.bbox()
             ptbb.enlarge(pyx.unit.u_pt * 2)
-            canvas.stroke(ptbb.path(), [pyx.color.rgb.black, pyx.deco.filled([bkcol])])  # noqa: E501
+            canvas.stroke(
+                ptbb.path(), [pyx.color.rgb.black, pyx.deco.filled([bkcol])]
+            )  # noqa: E501
             canvas.insert(pt)
             for field, fval, fdump in fields:
                 col = next(forecolor)
-                ft = pyx.text.text(XSTART, (YTXT - y) * YMUL, r"\font\cmssfont=cmss10\cmssfont{%s}" % tex_escape(field.name))  # noqa: E501
+                ft = pyx.text.text(
+                    XSTART,
+                    (YTXT - y) * YMUL,
+                    r"\font\cmssfont=cmss10\cmssfont{%s}" % tex_escape(field.name),
+                )  # noqa: E501
                 if isinstance(field, BitField):
-                    fsize = '%sb' % field.size
+                    fsize = "%sb" % field.size
                 else:
-                    fsize = '%sB' % len(fdump)
-                if (hasattr(field, 'field') and
-                        'LE' in field.field.__class__.__name__[:3] or
-                        'LE' in field.__class__.__name__[:3]):
-                    fsize = r'$\scriptstyle\langle$' + fsize
-                st = pyx.text.text(XSTART + 3.4, (YTXT - y) * YMUL, r"\font\cmbxfont=cmssbx10 scaled 600\cmbxfont{%s}" % fsize, [pyx.text.halign.boxright])  # noqa: E501
+                    fsize = "%sB" % len(fdump)
+                if (
+                    hasattr(field, "field")
+                    and "LE" in field.field.__class__.__name__[:3]
+                    or "LE" in field.__class__.__name__[:3]
+                ):
+                    fsize = r"$\scriptstyle\langle$" + fsize
+                st = pyx.text.text(
+                    XSTART + 3.4,
+                    (YTXT - y) * YMUL,
+                    r"\font\cmbxfont=cmssbx10 scaled 600\cmbxfont{%s}" % fsize,
+                    [pyx.text.halign.boxright],
+                )  # noqa: E501
                 if isinstance(fval, str):
                     if len(fval) > 18:
                         fval = fval[:18] + "[...]"
                 else:
                     fval = ""
-                vt = pyx.text.text(XSTART + 3.5, (YTXT - y) * YMUL, r"\font\cmssfont=cmss10\cmssfont{%s}" % tex_escape(fval))  # noqa: E501
+                vt = pyx.text.text(
+                    XSTART + 3.5,
+                    (YTXT - y) * YMUL,
+                    r"\font\cmssfont=cmss10\cmssfont{%s}" % tex_escape(fval),
+                )  # noqa: E501
                 y += 1.0
                 if fdump:
-                    dt, target, last_shift, last_y = make_dump(fdump, last_shift, last_y, col, bkcol)  # noqa: E501
+                    dt, target, last_shift, last_y = make_dump(
+                        fdump, last_shift, last_y, col, bkcol
+                    )  # noqa: E501
 
                     dtb = target
                     vtb = vt.bbox()
@@ -995,13 +1058,19 @@ class Packet(
                     dtb.enlarge(pyx.unit.u_pt)
                     try:
                         if yd < 0:
-                            cnx = pyx.connector.curve(bxvt, bxdt, absangle1=0, absangle2=-90)  # noqa: E501
+                            cnx = pyx.connector.curve(
+                                bxvt, bxdt, absangle1=0, absangle2=-90
+                            )  # noqa: E501
                         else:
-                            cnx = pyx.connector.curve(bxvt, bxdt, absangle1=0, absangle2=90)  # noqa: E501
+                            cnx = pyx.connector.curve(
+                                bxvt, bxdt, absangle1=0, absangle2=90
+                            )  # noqa: E501
                     except Exception:
                         pass
                     else:
-                        canvas.stroke(cnx, [pyx.style.linewidth.thin, pyx.deco.earrow.small, col])  # noqa: E501
+                        canvas.stroke(
+                            cnx, [pyx.style.linewidth.thin, pyx.deco.earrow.small, col]
+                        )  # noqa: E501
 
                     canvas.insert(dt)
 
@@ -1044,15 +1113,21 @@ class Packet(
             # We need to track fields with mutable values to discard
             # .raw_packet_cache when needed.
             if (f.islist or f.holds_packets or f.ismutable) and fval is not None:
-                self.raw_packet_cache_fields[f.name] = \
+                self.raw_packet_cache_fields[f.name] = (
                     self._raw_packet_cache_field_value(f, fval, copy=True)
+                )
             self.fields[f.name] = fval
             # Nothing left to dissect
-            if not s and (isinstance(f, MayEnd) or
-                          (fval is not None and isinstance(f, ConditionalField) and
-                           isinstance(f.fld, MayEnd))):
+            if not s and (
+                isinstance(f, MayEnd)
+                or (
+                    fval is not None
+                    and isinstance(f, ConditionalField)
+                    and isinstance(f.fld, MayEnd)
+                )
+            ):
                 break
-        self.raw_packet_cache = _raw[:-len(s)] if s else _raw
+        self.raw_packet_cache = _raw[: -len(s)] if s else _raw
         self.explicit = 1
         return s
 
@@ -1064,9 +1139,8 @@ class Packet(
         :param str s: the raw layer
         """
         if s:
-            if (
-                self.stop_dissection_after and
-                isinstance(self, self.stop_dissection_after)
+            if self.stop_dissection_after and isinstance(
+                self, self.stop_dissection_after
             ):
                 # stop dissection here
                 p = conf.raw_layer(s, _internal=1, _underlayer=self)
@@ -1087,9 +1161,11 @@ class Packet(
                     if issubtype(cls, Packet):
                         log_runtime.error("%s dissector failed", cls.__name__)
                     else:
-                        log_runtime.error("%s.guess_payload_class() returned "
-                                          "[%s]",
-                                          self.__class__.__name__, repr(cls))
+                        log_runtime.error(
+                            "%s.guess_payload_class() returned " "[%s]",
+                            self.__class__.__name__,
+                            repr(cls),
+                        )
                     if cls is not None:
                         raise
                 p = conf.raw_layer(s, _internal=1, _underlayer=self)
@@ -1120,8 +1196,7 @@ class Packet(
         for t in self.aliastypes:
             for fval, cls in t.payload_guess:
                 try:
-                    if all(v == self.getfieldval(k)
-                           for k, v in fval.items()):
+                    if all(v == self.getfieldval(k) for k, v in fval.items()):
                         return cls  # type: ignore
                 except AttributeError:
                     pass
@@ -1175,6 +1250,7 @@ class Packet(
     def __iter__(self):
         # type: () -> Iterator[Packet]
         """Iterates through all sub-packets generated by this Packet."""
+
         def loop(todo, done, self=self):
             # type: (List[str], Dict[str, Any], Any) -> Iterator[Packet]
             if todo:
@@ -1207,9 +1283,13 @@ class Packet(
             todo = []
             done = self.fields
         else:
-            todo = [k for (k, v) in itertools.chain(self.default_fields.items(),
-                                                    self.overloaded_fields.items())
-                    if isinstance(v, VolatileValue)] + list(self.fields)
+            todo = [
+                k
+                for (k, v) in itertools.chain(
+                    self.default_fields.items(), self.overloaded_fields.items()
+                )
+                if isinstance(v, VolatileValue)
+            ] + list(self.fields)
             done = {}
         return loop(todo, done)
 
@@ -1298,8 +1378,11 @@ class Packet(
             match = issubtype
         else:
             match = lambda x, t: bool(x == t)
-        if cls is None or match(self.__class__, cls) \
-           or cls in [self.__class__.__name__, self._name]:
+        if (
+            cls is None
+            or match(self.__class__, cls)
+            or cls in [self.__class__.__name__, self._name]
+        ):
             return True
         for f in self.packetfields:
             fvalue_gen = self.getfieldval(f.name)
@@ -1314,16 +1397,17 @@ class Packet(
                         return ret
         return self.payload.haslayer(cls, _subclass=_subclass)
 
-    def getlayer(self,
-                 cls,  # type: Union[int, Type[Packet], str]
-                 nb=1,  # type: int
-                 _track=None,  # type: Optional[List[int]]
-                 _subclass=None,  # type: Optional[bool]
-                 **flt  # type: Any
-                 ):
+    def getlayer(
+        self,
+        cls,  # type: Union[int, Type[Packet], str]
+        nb=1,  # type: int
+        _track=None,  # type: Optional[List[int]]
+        _subclass=None,  # type: Optional[bool]
+        **flt,  # type: Any
+    ):
         # type: (...) -> Optional[Packet]
         """Return the nb^th layer that is an instance of cls, matching flt
-values.
+        values.
         """
         if _subclass is None:
             _subclass = self.match_subclass or None
@@ -1346,10 +1430,15 @@ values.
             class_name, fld = string_class_name.split(".", 1)
         else:
             class_name, fld = string_class_name, None
-        if not class_name or match(self.__class__, class_name) \
-           or class_name in [self.__class__.__name__, self._name]:
-            if all(self.getfieldval(fldname) == fldvalue
-                   for fldname, fldvalue in flt.items()):
+        if (
+            not class_name
+            or match(self.__class__, class_name)
+            or class_name in [self.__class__.__name__, self._name]
+        ):
+            if all(
+                self.getfieldval(fldname) == fldvalue
+                for fldname, fldvalue in flt.items()
+            ):
                 if nb == 1:
                     if fld is None:
                         return self
@@ -1366,13 +1455,15 @@ values.
             for fvalue in fvalue_gen:
                 if isinstance(fvalue, Packet):
                     track = []  # type: List[int]
-                    ret = fvalue.getlayer(class_name, nb=nb, _track=track,
-                                          _subclass=_subclass, **flt)
+                    ret = fvalue.getlayer(
+                        class_name, nb=nb, _track=track, _subclass=_subclass, **flt
+                    )
                     if ret is not None:
                         return ret
                     nb = track[0]
-        return self.payload.getlayer(class_name, nb=nb, _track=_track,
-                                     _subclass=_subclass, **flt)
+        return self.payload.getlayer(
+            class_name, nb=nb, _track=_track, _subclass=_subclass, **flt
+        )
 
     def firstlayer(self):
         # type: () -> Packet
@@ -1431,13 +1522,14 @@ values.
         """Deprecated. Use show() method."""
         self.show(*args, **kargs)
 
-    def _show_or_dump(self,
-                      dump=False,  # type: bool
-                      indent=3,  # type: int
-                      lvl="",  # type: str
-                      label_lvl="",  # type: str
-                      first_call=True  # type: bool
-                      ):
+    def _show_or_dump(
+        self,
+        dump=False,  # type: bool
+        indent=3,  # type: int
+        lvl="",  # type: str
+        label_lvl="",  # type: str
+        first_call=True,  # type: bool
+    ):
         # type: (...) -> Optional[str]
         """
         Internal method that shows or dumps a hierarchical view of a packet.
@@ -1453,13 +1545,16 @@ values.
 
         if dump:
             from scapy.themes import ColorTheme, AnsiColorTheme
+
             ct: ColorTheme = AnsiColorTheme()  # No color for dump output
         else:
             ct = conf.color_theme
-        s = "%s%s %s %s\n" % (label_lvl,
-                              ct.punct("###["),
-                              ct.layer_name(self.name),
-                              ct.punct("]###"))
+        s = "%s%s %s %s\n" % (
+            label_lvl,
+            ct.punct("###["),
+            ct.layer_name(self.name),
+            ct.punct("]###"),
+        )
         fields = self.fields_desc.copy()
         while fields:
             f = fields.pop(0)
@@ -1482,29 +1577,39 @@ values.
                 vcol = ct.field_value
             pad = max(0, 10 - len(f.name)) * " "
             fvalue = self.getfieldval(f.name)
-            if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and isinstance(fvalue, list)):  # noqa: E501
-                s += "%s  %s%s%s%s\n" % (label_lvl + lvl,
-                                         ct.punct("\\"),
-                                         ncol(f.name),
-                                         pad,
-                                         ct.punct("\\"))
-                fvalue_gen = SetGen(
-                    fvalue,
-                    _iterpacket=0
-                )  # type: SetGen[Packet]
+            if isinstance(fvalue, Packet) or (
+                f.islist and f.holds_packets and isinstance(fvalue, list)
+            ):  # noqa: E501
+                s += "%s  %s%s%s%s\n" % (
+                    label_lvl + lvl,
+                    ct.punct("\\"),
+                    ncol(f.name),
+                    pad,
+                    ct.punct("\\"),
+                )
+                fvalue_gen = SetGen(fvalue, _iterpacket=0)  # type: SetGen[Packet]
                 for fvalue in fvalue_gen:
-                    s += fvalue._show_or_dump(dump=dump, indent=indent, label_lvl=label_lvl + lvl + "   |", first_call=False)  # noqa: E501
+                    s += fvalue._show_or_dump(
+                        dump=dump,
+                        indent=indent,
+                        label_lvl=label_lvl + lvl + "   |",
+                        first_call=False,
+                    )  # noqa: E501
             else:
-                begn = "%s  %s%s%s " % (label_lvl + lvl,
-                                        ncol(f.name),
-                                        pad,
-                                        ct.punct("="),)
+                begn = "%s  %s%s%s " % (
+                    label_lvl + lvl,
+                    ncol(f.name),
+                    pad,
+                    ct.punct("="),
+                )
                 reprval = f.i2repr(self, fvalue)
                 if isinstance(reprval, str):
-                    reprval = reprval.replace("\n", "\n" + " " * (len(label_lvl) +  # noqa: E501
-                                                                  len(lvl) +
-                                                                  len(f.name) +
-                                                                  4))
+                    reprval = reprval.replace(
+                        "\n",
+                        "\n"
+                        + " "
+                        * (len(label_lvl) + len(lvl) + len(f.name) + 4),  # noqa: E501
+                    )
                 s += "%s%s\n" % (begn, vcol(reprval))
         if self.payload:
             s += self.payload._show_or_dump(  # type: ignore
@@ -1512,7 +1617,7 @@ values.
                 indent=indent,
                 lvl=lvl + (" " * indent * self.show_indent),
                 label_lvl=label_lvl,
-                first_call=False
+                first_call=False,
             )
 
         if first_call and not dump:
@@ -1585,19 +1690,19 @@ values.
           "%(" and "%)".
         """
 
-        escape = {"%": "%",
-                  "(": "{",
-                  ")": "}"}
+        escape = {"%": "%", "(": "{", ")": "}"}
 
         # Evaluate conditions
         while "{" in fmt:
             i = fmt.rindex("{")
-            j = fmt[i + 1:].index("}")
-            cond = fmt[i + 1:i + j + 1]
+            j = fmt[i + 1 :].index("}")
+            cond = fmt[i + 1 : i + j + 1]
             k = cond.find(":")
             if k < 0:
-                raise Scapy_Exception("Bad condition in format string: [%s] (read sprintf doc!)" % cond)  # noqa: E501
-            cond, format_ = cond[:k], cond[k + 1:]
+                raise Scapy_Exception(
+                    "Bad condition in format string: [%s] (read sprintf doc!)" % cond
+                )  # noqa: E501
+            cond, format_ = cond[:k], cond[k + 1 :]
             res = False
             if cond[0] == "!":
                 res = True
@@ -1606,14 +1711,14 @@ values.
                 res = not res
             if not res:
                 format_ = ""
-            fmt = fmt[:i] + format_ + fmt[i + j + 2:]
+            fmt = fmt[:i] + format_ + fmt[i + j + 2 :]
 
         # Evaluate directives
         s = ""
         while "%" in fmt:
             i = fmt.index("%")
             s += fmt[:i]
-            fmt = fmt[i + 1:]
+            fmt = fmt[i + 1 :]
             if fmt and fmt[0] in escape:
                 s += escape[fmt[0]]
                 fmt = fmt[1:]
@@ -1638,18 +1743,21 @@ values.
                 if ":" in cls:
                     cls, snum = cls.split(":")
                     num = int(snum)
-                fmt = fmt[i + 1:]
+                fmt = fmt[i + 1 :]
             except Exception:
-                raise Scapy_Exception("Bad format string [%%%s%s]" % (fmt[:25], fmt[25:] and "..."))  # noqa: E501
+                raise Scapy_Exception(
+                    "Bad format string [%%%s%s]" % (fmt[:25], fmt[25:] and "...")
+                )  # noqa: E501
             else:
                 if fld == "time":
                     val = time.strftime(
-                        "%H:%M:%S.%%06i",
-                        time.localtime(float(self.time))
+                        "%H:%M:%S.%%06i", time.localtime(float(self.time))
                     ) % int((self.time - int(self.time)) * 1000000)
                 elif cls == self.__class__.__name__ and hasattr(self, fld):
                     if num > 1:
-                        val = self.payload.sprintf("%%%s,%s:%s.%s%%" % (f, cls, num - 1, fld), relax)  # noqa: E501
+                        val = self.payload.sprintf(
+                            "%%%s,%s:%s.%s%%" % (f, cls, num - 1, fld), relax
+                        )  # noqa: E501
                         f = "s"
                     else:
                         try:
@@ -1674,9 +1782,9 @@ values.
     def mysummary(self):
         # type: () -> str
         """DEV: can be overloaded to return a string that summarizes the layer.
-           Only one mysummary() is used in a whole packet summary: the one of the upper layer,  # noqa: E501
-           except if a mysummary() also returns (as a couple) a list of layers whose  # noqa: E501
-           mysummary() must be called if they are present."""
+        Only one mysummary() is used in a whole packet summary: the one of the upper layer,  # noqa: E501
+        except if a mysummary() also returns (as a couple) a list of layers whose  # noqa: E501
+        mysummary() must be called if they are present."""
         return ""
 
     def _do_summary(self):
@@ -1696,7 +1804,9 @@ values.
             impf = []
             for f in self.fields_desc:
                 if f in conf.emph:
-                    impf.append("%s=%s" % (f.name, f.i2repr(self, self.getfieldval(f.name))))  # noqa: E501
+                    impf.append(
+                        "%s=%s" % (f.name, f.i2repr(self, self.getfieldval(f.name)))
+                    )  # noqa: E501
             ret = "%s [%s]" % (ret, " ".join(impf))
         if ret and s:
             ret = "%s / %s" % (ret, s)
@@ -1754,18 +1864,14 @@ values.
                     fv = "[%s]" % ",".join(map(Packet.command, fv))
             elif fld.islist and isinstance(fv, list):
                 if json:
-                    fv = [
-                        getattr(x, 'command', lambda: repr(x))()
-                        for x in fv
-                    ]
+                    fv = [getattr(x, "command", lambda: repr(x))() for x in fv]
                 else:
                     fv = "[%s]" % ",".join(
-                        getattr(x, 'command', lambda: repr(x))()
-                        for x in fv
+                        getattr(x, "command", lambda: repr(x))() for x in fv
                     )
             elif isinstance(fv, FlagValue):
                 fv = int(fv)
-            elif callable(getattr(fv, 'command', None)):
+            elif callable(getattr(fv, "command", None)):
                 fv = fv.command(json=json)
             else:
                 if json:
@@ -1786,7 +1892,7 @@ values.
         """
         c = "%s(%s)" % (
             self.__class__.__name__,
-            ", ".join("%s=%s" % x for x in self._command())
+            ", ".join("%s=%s" % x for x in self._command()),
         )
         pc = self.payload.command()
         if pc:
@@ -1805,7 +1911,7 @@ values.
         dump = json.dumps({k: v for (k, v) in self._command(json=True)})
         pc = self.payload.json()
         if pc:
-            dump = dump[:-1] + ", \"payload\": %s}" % pc
+            dump = dump[:-1] + ', "payload": %s}' % pc
         return dump
 
 
@@ -1873,6 +1979,7 @@ class NoPayload(Packet):
     def __nonzero__(self):
         # type: () -> bool
         return False
+
     __bool__ = __nonzero__
 
     def do_build(self):
@@ -1937,13 +2044,14 @@ class NoPayload(Packet):
         # type: (Union[Type[Packet], str], Optional[bool]) -> int
         return 0
 
-    def getlayer(self,
-                 cls,  # type: Union[int, Type[Packet], str]
-                 nb=1,  # type: int
-                 _track=None,  # type: Optional[List[int]]
-                 _subclass=None,  # type: Optional[bool]
-                 **flt  # type: Any
-                 ):
+    def getlayer(
+        self,
+        cls,  # type: Union[int, Type[Packet], str]
+        nb=1,  # type: int
+        _track=None,  # type: Optional[List[int]]
+        _subclass=None,  # type: Optional[bool]
+        **flt,  # type: Any
+    ):
         # type: (...) -> Optional[Packet]
         if _track is not None:
             _track.append(nb)
@@ -2033,7 +2141,8 @@ class Padding(Raw):
     def build_padding(self):
         # type: () -> bytes
         return (
-            bytes_encode(self.load) if self.raw_packet_cache is None
+            bytes_encode(self.load)
+            if self.raw_packet_cache is None
             else self.raw_packet_cache
         ) + self.payload.build_padding()
 
@@ -2048,11 +2157,12 @@ if conf.default_l2 is None:
 #################
 
 
-def bind_bottom_up(lower,  # type: Type[Packet]
-                   upper,  # type: Type[Packet]
-                   __fval=None,  # type: Optional[Any]
-                   **fval  # type: Any
-                   ):
+def bind_bottom_up(
+    lower,  # type: Type[Packet]
+    upper,  # type: Type[Packet]
+    __fval=None,  # type: Optional[Any]
+    **fval,  # type: Any
+):
     # type: (...) -> None
     r"""Bind 2 layers for dissection.
     The upper layer will be chosen for dissection on top of the lower layer, if
@@ -2070,11 +2180,12 @@ def bind_bottom_up(lower,  # type: Type[Packet]
     lower.payload_guess.append((fval, upper))
 
 
-def bind_top_down(lower,  # type: Type[Packet]
-                  upper,  # type: Type[Packet]
-                  __fval=None,  # type: Optional[Any]
-                  **fval  # type: Any
-                  ):
+def bind_top_down(
+    lower,  # type: Type[Packet]
+    upper,  # type: Type[Packet]
+    __fval=None,  # type: Optional[Any]
+    **fval,  # type: Any
+):
     # type: (...) -> None
     """Bind 2 layers for building.
     When the upper layer is added as a payload of the lower layer, all the
@@ -2092,11 +2203,12 @@ def bind_top_down(lower,  # type: Type[Packet]
 
 
 @conf.commands.register
-def bind_layers(lower,  # type: Type[Packet]
-                upper,  # type: Type[Packet]
-                __fval=None,  # type: Optional[Dict[str, int]]
-                **fval  # type: Any
-                ):
+def bind_layers(
+    lower,  # type: Type[Packet]
+    upper,  # type: Type[Packet]
+    __fval=None,  # type: Optional[Dict[str, int]]
+    **fval,  # type: Any
+):
     # type: (...) -> None
     """Bind 2 layers on some specific fields' values.
 
@@ -2109,18 +2221,19 @@ def bind_layers(lower,  # type: Type[Packet]
     Please have a look at their docs:
      - help(bind_bottom_up)
      - help(bind_top_down)
-     """
+    """
     if __fval is not None:
         fval.update(__fval)
     bind_top_down(lower, upper, **fval)
     bind_bottom_up(lower, upper, **fval)
 
 
-def split_bottom_up(lower,  # type: Type[Packet]
-                    upper,  # type: Type[Packet]
-                    __fval=None,  # type: Optional[Any]
-                    **fval  # type: Any
-                    ):
+def split_bottom_up(
+    lower,  # type: Type[Packet]
+    upper,  # type: Type[Packet]
+    __fval=None,  # type: Optional[Any]
+    **fval,  # type: Any
+):
     # type: (...) -> None
     """This call un-links an association that was made using bind_bottom_up.
     Have a look at help(bind_bottom_up)
@@ -2134,14 +2247,16 @@ def split_bottom_up(lower,  # type: Type[Packet]
             k not in params or params[k] != v for k, v in fval.items()
         )
         return cls != upper or params_is_invalid
+
     lower.payload_guess = [x for x in lower.payload_guess if do_filter(*x)]
 
 
-def split_top_down(lower,  # type: Type[Packet]
-                   upper,  # type: Type[Packet]
-                   __fval=None,  # type: Optional[Any]
-                   **fval  # type: Any
-                   ):
+def split_top_down(
+    lower,  # type: Type[Packet]
+    upper,  # type: Type[Packet]
+    __fval=None,  # type: Optional[Any]
+    **fval,  # type: Any
+):
     # type: (...) -> None
     """This call un-links an association that was made using bind_top_down.
     Have a look at help(bind_top_down)
@@ -2157,11 +2272,12 @@ def split_top_down(lower,  # type: Type[Packet]
 
 
 @conf.commands.register
-def split_layers(lower,  # type: Type[Packet]
-                 upper,  # type: Type[Packet]
-                 __fval=None,  # type: Optional[Any]
-                 **fval  # type: Any
-                 ):
+def split_layers(
+    lower,  # type: Type[Packet]
+    upper,  # type: Type[Packet]
+    __fval=None,  # type: Optional[Any]
+    **fval,  # type: Any
+):
     # type: (...) -> None
     """Split 2 layers previously bound.
     This call un-links calls bind_top_down and bind_bottom_up. It is the opposite of  # noqa: E501
@@ -2197,22 +2313,26 @@ def explore(layer=None):
     """
     if layer is None:  # GUI MODE
         if not conf.interactive:
-            raise Scapy_Exception("explore() GUI-mode cannot be run in "
-                                  "interactive mode. Please provide a "
-                                  "'layer' parameter !")
+            raise Scapy_Exception(
+                "explore() GUI-mode cannot be run in "
+                "interactive mode. Please provide a "
+                "'layer' parameter !"
+            )
         # 0 - Imports
         try:
             import prompt_toolkit
         except ImportError:
-            raise ImportError("prompt_toolkit is not installed ! "
-                              "You may install IPython, which contains it, via"
-                              " `pip install ipython`")
+            raise ImportError(
+                "prompt_toolkit is not installed ! "
+                "You may install IPython, which contains it, via"
+                " `pip install ipython`"
+            )
         if not _version_checker(prompt_toolkit, (2, 0)):
             raise ImportError("prompt_toolkit >= 2.0.0 is required !")
         # Only available with prompt_toolkit > 2.0, not released on PyPi yet
-        from prompt_toolkit.shortcuts.dialogs import radiolist_dialog, \
-            button_dialog
+        from prompt_toolkit.shortcuts.dialogs import radiolist_dialog, button_dialog
         from prompt_toolkit.formatted_text import HTML
+
         # Check for prompt_toolkit >= 3.0.0
         call_ptk = lambda x: cast(str, x)  # type: Callable[[Any], str]
         if _version_checker(prompt_toolkit, (3, 0)):
@@ -2222,28 +2342,31 @@ def explore(layer=None):
             title="Scapy v%s" % conf.version,
             text=HTML(
                 '<style bg="white" fg="red">Chose the type of packets'
-                ' you want to explore:</style>'
+                " you want to explore:</style>"
             ),
             buttons=[
                 ("Layers", "layers"),
                 ("Contribs", "contribs"),
-                ("Cancel", "cancel")
-            ])
+                ("Cancel", "cancel"),
+            ],
+        )
         action = call_ptk(btn_diag)
         # 2 - Retrieve list of Packets
         if action == "layers":
             # Get all loaded layers
             lvalues = conf.layers.layers()
             # Restrict to layers-only (not contribs) + packet.py and asn1*.py
-            values = [x for x in lvalues if ("layers" in x[0] or
-                                             "packet" in x[0] or
-                                             "asn1" in x[0])]
+            values = [
+                x
+                for x in lvalues
+                if ("layers" in x[0] or "packet" in x[0] or "asn1" in x[0])
+            ]
         elif action == "contribs":
             # Get all existing contribs
             from scapy.main import list_contrib
+
             cvalues = cast(List[Dict[str, str]], list_contrib(ret=True))
-            values = [(x['name'], x['description'])
-                      for x in cvalues]
+            values = [(x["name"], x["description"]) for x in cvalues]
             # Remove very specific modules
             values = [x for x in values if "can" not in x[0]]
         else:
@@ -2255,7 +2378,9 @@ def explore(layer=None):
             # _l which contains the files in the layer, and a _name
             # argument which is its name. The other keys are the subfolders,
             # which are similar dictionaries
-            tree = defaultdict(list)  # type: Dict[str, Union[List[Any], Dict[str, Any]]]  # noqa: E501
+            tree = defaultdict(
+                list
+            )  # type: Dict[str, Union[List[Any], Dict[str, Any]]]  # noqa: E501
             for name, desc in values:
                 if "." in name:  # Folder detected
                     parts = name.split(".")
@@ -2275,25 +2400,30 @@ def explore(layer=None):
             tree = {"_l": values}
         # 3 - Ask for the layer/contrib module to explore
         current = tree  # type: Any
-        previous = []  # type: List[Dict[str, Union[List[Any], Dict[str, Any]]]]  # noqa: E501
+        previous = (
+            []
+        )  # type: List[Dict[str, Union[List[Any], Dict[str, Any]]]]  # noqa: E501
         while True:
             # Generate tests & form
             folders = list(current.keys())
             _radio_values = [
-                ("$" + name, str('[+] ' + name.capitalize()))
-                for name in folders if not name.startswith("_")
-            ] + current.get("_l", [])  # type: List[str]
+                ("$" + name, str("[+] " + name.capitalize()))
+                for name in folders
+                if not name.startswith("_")
+            ] + current.get(
+                "_l", []
+            )  # type: List[str]
             cur_path = ""
             if previous:
                 cur_path = ".".join(
                     itertools.chain(
                         (x["_name"] for x in previous[1:]),  # type: ignore
-                        (current["_name"],)
+                        (current["_name"],),
                     )
                 )
-            extra_text = (
-                '\n<style bg="white" fg="green">> scapy.%s</style>'
-            ) % (action + ("." + cur_path if cur_path else ""))
+            extra_text = ('\n<style bg="white" fg="green">> scapy.%s</style>') % (
+                action + ("." + cur_path if cur_path else "")
+            )
             # Show popup
             rd_diag = radiolist_dialog(
                 values=_radio_values,
@@ -2301,11 +2431,12 @@ def explore(layer=None):
                 text=HTML(
                     (
                         '<style bg="white" fg="red">Please select a file'
-                        'among the following, to see all layers contained in'
-                        ' it:</style>'
-                    ) + extra_text
+                        "among the following, to see all layers contained in"
+                        " it:</style>"
+                    )
+                    + extra_text
                 ),
-                cancel_text="Back" if previous else "Cancel"
+                cancel_text="Back" if previous else "Cancel",
             )
             result = call_ptk(rd_diag)
             if result is None:
@@ -2326,6 +2457,7 @@ def explore(layer=None):
         # 4 - (Contrib only): load contrib
         if action == "contribs":
             from scapy.main import load_contrib
+
             load_contrib(result)
             result = "scapy.contrib." + result
     else:  # NON-GUI MODE
@@ -2340,9 +2472,12 @@ def explore(layer=None):
                 if layer.startswith("scapy.contrib."):
                     layer = layer.replace("scapy.contrib.", "")
                 from scapy.main import load_contrib
+
                 load_contrib(layer)
-                result_layer, result_contrib = (("scapy.layers.%s" % layer),
-                                                ("scapy.contrib.%s" % layer))
+                result_layer, result_contrib = (
+                    ("scapy.layers.%s" % layer),
+                    ("scapy.contrib.%s" % layer),
+                )
                 if result_layer in conf.layers.ldict:
                     result = result_layer
                 elif result_contrib in conf.layers.ldict:
@@ -2366,9 +2501,10 @@ def explore(layer=None):
     print(pretty_list(rtlst, [("Class", "Name")], borders=True))
 
 
-def _pkt_ls(obj,  # type: Union[Packet, Type[Packet]]
-            verbose=False,  # type: bool
-            ):
+def _pkt_ls(
+    obj,  # type: Union[Packet, Type[Packet]]
+    verbose=False,  # type: bool
+):
     # type: (...) -> List[Tuple[str, Type[AnyField], str, str, List[str]]]  # noqa: E501
     """Internal function used to resolve `fields_desc` to display it.
 
@@ -2390,13 +2526,16 @@ def _pkt_ls(obj,  # type: Union[Packet, Type[Packet]]
             cur_fld = cur_fld.fld
         name = cur_fld.name
         default = cur_fld.default
-        if verbose and isinstance(cur_fld, EnumField) \
-           and hasattr(cur_fld, "i2s") and cur_fld.i2s:
+        if (
+            verbose
+            and isinstance(cur_fld, EnumField)
+            and hasattr(cur_fld, "i2s")
+            and cur_fld.i2s
+        ):
             if len(cur_fld.i2s or []) < 50:
                 long_attrs.extend(
                     "%s: %d" % (strval, numval)
-                    for numval, strval in
-                    sorted(cur_fld.i2s.items())
+                    for numval, strval in sorted(cur_fld.i2s.items())
                 )
         elif isinstance(cur_fld, MultiEnumField):
             if isinstance(obj, Packet):
@@ -2406,49 +2545,41 @@ def _pkt_ls(obj,  # type: Union[Packet, Type[Packet]]
             fld_depend = cur_fld.depends_on(obj_pkt)
             attrs.append("Depends on %s" % fld_depend)
             if verbose:
-                cur_i2s = cur_fld.i2s_multi.get(
-                    cur_fld.depends_on(obj_pkt), {}
-                )
+                cur_i2s = cur_fld.i2s_multi.get(cur_fld.depends_on(obj_pkt), {})
                 if len(cur_i2s) < 50:
                     long_attrs.extend(
                         "%s: %d" % (strval, numval)
-                        for numval, strval in
-                        sorted(cur_i2s.items())
+                        for numval, strval in sorted(cur_i2s.items())
                     )
         elif verbose and isinstance(cur_fld, FlagsField):
             names = cur_fld.names
             long_attrs.append(", ".join(names))
         elif isinstance(cur_fld, MultipleTypeField):
             default = cur_fld.dflt.default
-            attrs.append(", ".join(
-                x[0].__class__.__name__ for x in
-                itertools.chain(cur_fld.flds, [(cur_fld.dflt,)])
-            ))
+            attrs.append(
+                ", ".join(
+                    x[0].__class__.__name__
+                    for x in itertools.chain(cur_fld.flds, [(cur_fld.dflt,)])
+                )
+            )
 
         cls = cur_fld.__class__
-        class_name_extras = "(%s)" % (
-            ", ".join(attrs)
-        ) if attrs else ""
+        class_name_extras = "(%s)" % (", ".join(attrs)) if attrs else ""
         if isinstance(cur_fld, BitField):
             class_name_extras += " (%d bit%s)" % (
                 cur_fld.size,
-                "s" if cur_fld.size > 1 else ""
+                "s" if cur_fld.size > 1 else "",
             )
-        fields.append(
-            (name,
-             cls,
-             class_name_extras,
-             repr(default),
-             long_attrs)
-        )
+        fields.append((name, cls, class_name_extras, repr(default), long_attrs))
     return fields
 
 
 @conf.commands.register
-def ls(obj=None,  # type: Optional[Union[str, Packet, Type[Packet]]]
-       case_sensitive=False,  # type: bool
-       verbose=False  # type: bool
-       ):
+def ls(
+    obj=None,  # type: Optional[Union[str, Packet, Type[Packet]]]
+    case_sensitive=False,  # type: bool
+    verbose=False,  # type: bool
+):
     # type: (...) -> None
     """List  available layers, or infos on a given layer class or name.
 
@@ -2462,41 +2593,42 @@ def ls(obj=None,  # type: Optional[Union[str, Packet, Type[Packet]]]
             tip = True
             all_layers = sorted(conf.layers, key=lambda x: x.__name__)
         else:
-            pattern = re.compile(
-                obj,
-                0 if case_sensitive else re.I
-            )
+            pattern = re.compile(obj, 0 if case_sensitive else re.I)
             # We first order by accuracy, then length
             if case_sensitive:
                 sorter = lambda x: (x.__name__.index(obj), len(x.__name__))
             else:
                 obj = obj.lower()
-                sorter = lambda x: (x.__name__.lower().index(obj),
-                                    len(x.__name__))
-            all_layers = sorted((layer for layer in conf.layers
-                                 if (isinstance(layer.__name__, str) and
-                                     pattern.search(layer.__name__)) or
-                                 (isinstance(layer.name, str) and
-                                     pattern.search(layer.name))),
-                                key=sorter)
+                sorter = lambda x: (x.__name__.lower().index(obj), len(x.__name__))
+            all_layers = sorted(
+                (
+                    layer
+                    for layer in conf.layers
+                    if (
+                        isinstance(layer.__name__, str)
+                        and pattern.search(layer.__name__)
+                    )
+                    or (isinstance(layer.name, str) and pattern.search(layer.name))
+                ),
+                key=sorter,
+            )
         for layer in all_layers:
             print("%-10s : %s" % (layer.__name__, layer._name))
         if tip and conf.interactive:
-            print("\nTIP: You may use explore() to navigate through all "
-                  "layers using a clear GUI")
+            print(
+                "\nTIP: You may use explore() to navigate through all "
+                "layers using a clear GUI"
+            )
     else:
         try:
-            fields = _pkt_ls(
-                obj,
-                verbose=verbose
-            )
+            fields = _pkt_ls(obj, verbose=verbose)
             is_pkt = isinstance(obj, Packet)
             # Print
             for fname, cls, clsne, dflt, long_attrs in fields:
                 clsinfo = cls.__name__ + " " + clsne
-                print("%-10s : %-35s =" % (fname, clsinfo), end=' ')
+                print("%-10s : %-35s =" % (fname, clsinfo), end=" ")
                 if is_pkt:
-                    print("%-15r" % (getattr(obj, fname),), end=' ')
+                    print("%-15r" % (getattr(obj, fname),), end=" ")
                 print("(%r)" % (dflt,))
                 for attr in long_attrs:
                     print("%-15s%s" % ("", attr))
@@ -2508,7 +2640,9 @@ def ls(obj=None,  # type: Optional[Union[str, Packet, Type[Packet]]]
                 print("--")
                 ls(obj.payload)
         except ValueError:
-            print("Not a packet class or name. Type 'ls()' to list packet classes.")  # noqa: E501
+            print(
+                "Not a packet class or name. Type 'ls()' to list packet classes."
+            )  # noqa: E501
 
 
 @conf.commands.register
@@ -2546,11 +2680,12 @@ def rfc(cls, ret=False, legend=True):
             # Add padding optionally
             if isinstance(f, PadField):
                 if isinstance(f._align, tuple):
-                    pad = - cur_len % (f._align[0] * 8)
+                    pad = -cur_len % (f._align[0] * 8)
                 else:
-                    pad = - cur_len % (f._align * 8)
+                    pad = -cur_len % (f._align * 8)
                 if pad:
                     yield "padding", pad
+
     for fname, flen in _iterfields():
         cur_len += flen
         ident += 1
@@ -2596,22 +2731,18 @@ def rfc(cls, ret=False, legend=True):
                 # and fill it with " "
                 pos_above = pos_above + pos_above % 2
                 sep = (
-                    sep[:1 + pos_above] +
-                    " " * (pos_below - pos_above) +
-                    sep[1 + pos_below:]
+                    sep[: 1 + pos_above]
+                    + " " * (pos_below - pos_above)
+                    + sep[1 + pos_below :]
                 )
         # line is complete
         seps.append(sep)
     # Graph
     result = ""
     # Bytes markers
-    result += " " + (" " * 19).join(
-        str(x) for x in range(4)
-    ) + "\n"
+    result += " " + (" " * 19).join(str(x) for x in range(4)) + "\n"
     # Bits markers
-    result += " " + " ".join(
-        str(x % 10) for x in range(32)
-    ) + "\n"
+    result += " " + " ".join(str(x % 10) for x in range(32)) + "\n"
     # Add fields and their separations
     for line, sep in zip(lines, seps):
         result += sep
@@ -2633,13 +2764,14 @@ def rfc(cls, ret=False, legend=True):
 #  Fuzzing  #
 #############
 
-_P = TypeVar('_P', bound=Packet)
+_P = TypeVar("_P", bound=Packet)
 
 
 @conf.commands.register
-def fuzz(p,  # type: _P
-         _inplace=0,  # type: int
-         ):
+def fuzz(
+    p,  # type: _P
+    _inplace=0,  # type: int
+):
     # type: (...) -> _P
     """
     Transform a layer into a fuzzy layer by replacing some default values
