@@ -498,6 +498,8 @@ class MultipleTypeField(_FieldContainer):
         self.dflt = dflt
         self.default = None  # So that we can detect changes in defaults
         self.name = self.dflt.name
+        if self.name == "Mask":
+            breakpoint()
         if any(x[0].name != self.name for x in self.flds):
             warnings.warn(
                 (
@@ -512,6 +514,12 @@ class MultipleTypeField(_FieldContainer):
         # type: (Optional[Packet], Any, bool) -> Field[Any, Any]
         """Internal function used by _find_fld_pkt & _find_fld_pkt_val"""
         # Iterate through the fields
+        print(
+            "MultipleTypeField: iterating through fields for packet %s, val %s, use_val %s"
+            % (pkt, val, use_val)
+        )
+        if val == 4294967295 and use_val:
+            breakpoint()
         for fld, cond in self.flds:
             if isinstance(cond, tuple):
                 if use_val:
@@ -523,6 +531,10 @@ class MultipleTypeField(_FieldContainer):
                 else:
                     cond = cond[0]
             if cond(pkt):
+                print(
+                    "MultipleTypeField: condition matched for field %s, using %s"
+                    % (fld, fld.__class__.__name__)
+                )
                 return fld
         return self.dflt
 
@@ -3324,7 +3336,6 @@ class FlagsField(_BitField[Optional[Union[int, FlagValue]]]):
     ):
         # type: (...) -> None
         # Convert the dict to a list
-        print("names", names)
         if isinstance(names, dict):
             tmp = ["bit_%d" % i for i in range(abs(size))]
             for i, v in names.items():

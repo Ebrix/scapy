@@ -505,6 +505,8 @@ class _WINNT_ACCESS_MASK_Field(MultipleTypeField):
     def __init__(self, name, default):
         # We create a MultipleTypeField that returns different FlagsField depending
         # on the type of the SECURITY_DESCRIPTOR
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+        breakpoint()
         self.flds = [
             (
                 FlagsField(name, default, 32, context["mask"]),
@@ -522,7 +524,6 @@ class _WINNT_ACCESS_MASK_Field(MultipleTypeField):
         print(
             f"[*] Got {pkt.__class__.__name__} with mask_specific_type={pkt.mask_specific_type}"
         )
-        print(self.flds)
         return pkt.mask_specific_type
 
 
@@ -530,11 +531,11 @@ class _WINNT_ACCESS_MASK_Field(MultipleTypeField):
 
 
 class WINNT_ACCESS_ALLOWED_ACE(Packet):
+    __slots__ = ["mask_specific_type"]
     fields_desc = [
         _WINNT_ACCESS_MASK_Field("Mask", 0),
         PacketField("Sid", WINNT_SID(), WINNT_SID),
     ]
-    __slots__ = ["mask_specific_type"]
 
     def __init__(self, *args, **kwargs):
         # Identify which specific type of ACE we are parsing to be able to use the right access mask
@@ -547,7 +548,6 @@ class WINNT_ACCESS_ALLOWED_ACE(Packet):
                 % self.mask_specific_type
             )
             self.mask_specific_type = WINNT_ACCESS_MASK_SPECIFIC_TYPE.DEFAULT
-
         super(WINNT_ACCESS_ALLOWED_ACE, self).__init__(*args, **kwargs)
         self.fields_desc = [
             _WINNT_ACCESS_MASK_Field("Mask", 0),
